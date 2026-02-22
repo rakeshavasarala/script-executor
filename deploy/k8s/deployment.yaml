@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: script-executor
+  namespace: opscontrolroom-system
+  labels:
+    app: script-executor
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: script-executor
+  template:
+    metadata:
+      labels:
+        app: script-executor
+    spec:
+      serviceAccountName: script-executor
+      containers:
+        - name: executor
+          image: script-executor:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 50051
+              name: grpc
+              protocol: TCP
+            - containerPort: 9090
+              name: metrics
+              protocol: TCP
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: CONFIG_PATH
+              value: "/etc/script-executor/config.yaml"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/script-executor
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "nc -z localhost 50051 || exit 1"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "nc -z localhost 50051 || exit 1"
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: script-executor-config

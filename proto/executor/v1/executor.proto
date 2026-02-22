@@ -1,0 +1,126 @@
+syntax = "proto3";
+
+package executor.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/rakeshavasarala/script-executor/gen/go/proto/executor/v1;executorv1";
+
+// Executor service defines the interface that all OpsControlRoom executor plugins must implement.
+service Executor {
+  // Execute runs a step and returns the result.
+  // Use this for steps that complete quickly (< 30 seconds).
+  rpc Execute(ExecuteRequest) returns (ExecuteResponse);
+
+  // ExecuteStream runs a step and streams progress updates.
+  // Use this for long-running steps (pipelines, batch operations, etc.)
+  // that benefit from real-time progress feedback.
+  rpc ExecuteStream(ExecuteRequest) returns (stream ExecuteProgress);
+
+  // Describe returns metadata about this executor's capabilities.
+  rpc Describe(DescribeRequest) returns (DescribeResponse);
+
+  // Health returns the executor's health status.
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+message ExecuteRequest {
+  string step_type = 1;
+  google.protobuf.Struct parameters = 2;
+  ExecutionContext context = 3;
+  google.protobuf.Duration timeout = 4;
+}
+
+message ExecutionContext {
+  string execution_id = 1;
+  string cluster_id = 2;
+  string namespace = 3;
+  map<string, string> labels = 4;
+  string user = 5;
+  string runbook_id = 6;
+  google.protobuf.Timestamp started_at = 7;
+}
+
+message ExecuteResponse {
+  Status status = 1;
+  google.protobuf.Struct output = 2;
+  string error = 3;
+  google.protobuf.Duration duration = 4;
+  ErrorDetails error_details = 5;
+
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_SUCCEEDED = 1;
+    STATUS_FAILED = 2;
+    STATUS_TIMEOUT = 3;
+    STATUS_PENDING = 4;  // Awaiting manual approval before execution
+  }
+}
+
+message ErrorDetails {
+  string code = 1;
+  string message = 2;
+  repeated FieldViolation field_violations = 3;
+  map<string, string> metadata = 4;
+}
+
+message FieldViolation {
+  string field = 1;
+  string description = 2;
+}
+
+message ExecuteProgress {
+  Stage stage = 1;
+  int32 percent_complete = 2;
+  string message = 3;
+  google.protobuf.Struct metadata = 4;
+  google.protobuf.Timestamp timestamp = 5;
+  ExecuteResponse result = 6;
+
+  enum Stage {
+    STAGE_UNSPECIFIED = 0;
+    STAGE_STARTING = 1;
+    STAGE_RUNNING = 2;
+    STAGE_COMPLETING = 3;
+    STAGE_DONE = 4;
+  }
+}
+
+message DescribeRequest {
+  repeated string step_types = 1;
+}
+
+message DescribeResponse {
+  string name = 1;
+  string version = 2;
+  repeated StepTypeCapability step_types = 3;
+  map<string, string> metadata = 4;
+}
+
+message StepTypeCapability {
+  string type = 1;
+  bool supports_streaming = 2;
+  google.protobuf.Duration typical_duration = 3;
+  string description = 4;
+  repeated string required_parameters = 5;
+  repeated string optional_parameters = 6;
+}
+
+message HealthRequest {
+  repeated string checks = 1;
+}
+
+message HealthResponse {
+  Status status = 1;
+  map<string, string> details = 2;
+  google.protobuf.Timestamp timestamp = 3;
+
+  enum Status {
+    STATUS_UNKNOWN = 0;
+    STATUS_SERVING = 1;
+    STATUS_NOT_SERVING = 2;
+    STATUS_DEGRADED = 3;
+  }
+}

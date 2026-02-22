@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: script-executor-config
+  namespace: opscontrolroom-system
+data:
+  config.yaml: |
+    script_executor:
+      grpc:
+        port: 50051
+        max_message_size: 10485760
+      kubernetes:
+        namespace: opscontrolroom-system
+        service_account: script-executor-runner
+        job_defaults:
+          ttl_seconds_after_finished: 300
+          backoff_limit: 0
+          active_deadline_seconds: 1800
+        default_resources:
+          requests:
+            cpu: "100m"
+            memory: "64Mi"
+          limits:
+            cpu: "500m"
+            memory: "256Mi"
+            ephemeral_storage: "1Gi"
+        max_resources:
+          limits:
+            cpu: "4000m"
+            memory: "8Gi"
+            ephemeral_storage: "20Gi"
+      image:
+        default_image: "alpine:latest"
+        default_image_pull_policy: "IfNotPresent"
+        catalog:
+          enabled: true
+          configmap_name: "script-image-catalog"
+          configmap_namespace: "opscontrolroom-system"
+      security:
+        max_script_size: 524288
+        max_script_lines: 1000
+        default_timeout: "5m"
+        max_timeout: "30m"
+      approval:
+        enabled: true
+        storage:
+          type: "configmap"
+          configmap_name: "script-approvals"
+          configmap_namespace: "opscontrolroom-system"
+      audit:
+        enabled: true
+        log_file: "/var/log/ocr/script-audit.log"
+      monitoring:
+        metrics:
+          enabled: true
+          port: 9090
